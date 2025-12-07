@@ -138,6 +138,7 @@ jobs:
         else
           echo "Full build required"
           cmake --build . --config RelWithDebInfo
+        fi
 
     - name: Collect plugin DLLs
       run: |
