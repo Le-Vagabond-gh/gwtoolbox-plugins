@@ -6,8 +6,6 @@
 #include <GWCA/Managers/ChatMgr.h>
 #include <GWCA/GameEntities/Item.h>
 #include <GWCA/Utilities/Hook.h>
-#include <Utils/GuiUtils.h>
-#include <Utils/TextUtils.h>
 #include <sstream>
 #include <random>
 
@@ -70,22 +68,7 @@ void UseRandomCmd(GW::HookStatus*, const wchar_t*, const int argc, const LPWSTR*
         std::wstring msg = L"Item #" + std::to_wstring(selected_item_id) + L" not found!";
         GW::Chat::WriteChat(GW::Chat::CHANNEL_GLOBAL, msg.c_str(), L"UseRandom Plugin");
     } else {
-        // Try to find the item to get its name
-        std::wstring item_name = L"Unknown";
-        GW::ItemArray* items = GW::Items::GetItemArray();
-        if (items) {
-            for (size_t i = 0; i < items->size(); i++) {
-                GW::Item* item = items->at(i);
-                if (item && item->model_id == selected_item_id) {
-                    static GuiUtils::EncString enc_name;
-                    enc_name.reset(item->single_item_name);
-                    item_name = TextUtils::StringToWString(enc_name.string());
-                    break;
-                }
-            }
-        }
-        
-        std::wstring msg = L"Used random item #" + std::to_wstring(selected_item_id) + L", " + item_name;
+        std::wstring msg = L"Used random item #" + std::to_wstring(selected_item_id);
         GW::Chat::WriteChat(GW::Chat::CHANNEL_GLOBAL, msg.c_str(), L"UseRandom Plugin");
     }
 }
