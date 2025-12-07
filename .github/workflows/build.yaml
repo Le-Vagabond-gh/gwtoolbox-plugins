@@ -19,9 +19,21 @@ jobs:
     - name: Checkout this repository
       uses: actions/checkout@v4
 
+    - name: Cache GWToolboxpp repository
+      uses: actions/cache@v4
+      with:
+        path: ${{runner.workspace}}/GWToolboxpp
+        key: gwtoolboxpp-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.cmake', '**/CMakeLists.txt') }}
+        restore-keys: |
+          gwtoolboxpp-
+
     - name: Clone GWToolboxpp
       run: |
-        git clone https://github.com/gwdevhub/GWToolboxpp.git ${{runner.workspace}}/GWToolboxpp
+        if (!(Test-Path "${{runner.workspace}}/GWToolboxpp")) {
+          git clone https://github.com/gwdevhub/GWToolboxpp.git ${{runner.workspace}}/GWToolboxpp
+        } else {
+          Write-Host "GWToolboxpp restored from cache"
+        }
 
     - name: Copy plugins to GWToolboxpp
       run: |
@@ -62,40 +74,28 @@ jobs:
           Add-Content $pluginsFile -Value "add_tb_plugin($pluginName)"
         }
 
-    - name: Cache CMake dependency source code
-      continue-on-error: true
-      uses: actions/cache@v4
-      env:
-        cache-name: cache-cmake-dependency-sources
-      with:
-        path: ${{runner.workspace}}/GWToolboxpp/build/_deps/*-src
-        key: ${{ env.cache-name }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
-        restore-keys: |
-          ${{ env.cache-name }}-
-
-    - name: Cache CMake dependency build objects
-      continue-on-error: true
-      uses: actions/cache@v4
-      env:
-        cache-name: cache-cmake-dependency-builds
-      with:
-        path: |
-          ${{runner.workspace}}/GWToolboxpp/build/_deps/*-build
-          ${{runner.workspace}}/GWToolboxpp/build/_deps/*-subbuild
-        key: ${{ env.cache-name }}-${{ runner.os }}-relwithdebinfo-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
-        restore-keys: |
-          ${{ env.cache-name }}-${{ runner.os }}-relwithdebinfo-
-
     - name: Checkout GWToolboxpp submodules
       shell: bash
       working-directory: ${{runner.workspace}}/GWToolboxpp
       run: git submodule update --init --recursive
       
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: ${{runner.workspace}}/GWToolboxpp/vcpkg
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('**/vcpkg.json', '**/.vcpkg-root') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
+
     - name: Install vcpkg
       working-directory: ${{runner.workspace}}/GWToolboxpp
       run: |
-        git clone https://github.com/microsoft/vcpkg.git
-        .\vcpkg\bootstrap-vcpkg.bat
+        if (!(Test-Path "vcpkg")) {
+          git clone https://github.com/microsoft/vcpkg.git
+          .\vcpkg\bootstrap-vcpkg.bat
+        } else {
+          Write-Host "vcpkg restored from cache"
+        }
         
     - name: Set VCPKG_ROOT
       run: |
@@ -108,6 +108,14 @@ jobs:
         script: |
           core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
           core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+    - name: Cache CMake build
+      uses: actions/cache@v4
+      with:
+        path: ${{runner.workspace}}/GWToolboxpp/build
+        key: cmake-build-${{ runner.os }}-relwithdebinfo-${{ hashFiles('**/CMakeLists.txt', 'cmake/**', '**/*.cpp', '**/*.h') }}
+        restore-keys: |
+          cmake-build-${{ runner.os }}-relwithdebinfo-
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/GWToolboxpp/build
@@ -123,7 +131,13 @@ jobs:
     - name: Build
       working-directory: ${{runner.workspace}}/GWToolboxpp/build
       shell: bash
-      run: cmake --build . --config RelWithDebInfo
+      run: |
+        if [ -f "Makefile" ] || [ -f "CMakeFiles/Makefile2" ]; then
+          echo "Incremental build detected"
+          cmake --build . --config RelWithDebInfo --target all
+        else
+          echo "Full build required"
+          cmake --build . --config RelWithDebInfo
 
     - name: Collect plugin DLLs
       run: |
