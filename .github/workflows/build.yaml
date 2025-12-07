@@ -18,6 +18,9 @@ jobs:
 
     - name: Checkout this repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
 
     - name: Cache GWToolboxpp repository
       uses: actions/cache@v4
@@ -189,15 +192,24 @@ jobs:
         # Get the latest release tag
         $latestRelease = & git describe --tags --abbrev=0 2>$null
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($latestRelease)) {
-          $latestRelease = "HEAD~10"  # Fallback to last 10 commits if no tags found
-          Write-Host "No previous release found, using last 10 commits"
+          # Fallback: get all commits if no tags found
+          $commitCount = & git rev-list --count HEAD 2>$null
+          if ($LASTEXITCODE -eq 0 -and $commitCount -gt 0) {
+            $latestRelease = & git rev-list HEAD | Select-Object -Last 1
+            Write-Host "No previous release found, using all commits"
+          } else {
+            Write-Host "No git history found, using empty changelog"
+            $changelog = "No changes since last release"
+            echo "changelog=$changelog" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
         } else {
           Write-Host "Found latest release: $latestRelease"
         }
         
         # Generate changelog since last release
-        $changelog = & git log $latestRelease..HEAD --pretty=format:"- %s (%h)" --no-merges
-        if ([string]::IsNullOrEmpty($changelog)) {
+        $changelog = & git log $latestRelease..HEAD --pretty=format:"- %s (%h)" --no-merges 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($changelog)) {
           $changelog = "No changes since last release"
         }
         
