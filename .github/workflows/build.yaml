@@ -168,6 +168,31 @@ jobs:
           }
         }
 
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        # Get the latest release tag
+        $latestRelease = & git describe --tags --abbrev=0 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($latestRelease)) {
+          $latestRelease = "HEAD~10"  # Fallback to last 10 commits if no tags found
+          Write-Host "No previous release found, using last 10 commits"
+        } else {
+          Write-Host "Found latest release: $latestRelease"
+        }
+        
+        # Generate changelog since last release
+        $changelog = & git log $latestRelease..HEAD --pretty=format:"- %s (%h)" --no-merges
+        if ([string]::IsNullOrEmpty($changelog)) {
+          $changelog = "No changes since last release"
+        }
+        
+        # Escape for GitHub Actions output and set as step output
+        $changelog = $changelog -replace "`n", "%0A" -replace "`r", ""
+        echo "changelog=$changelog" >> $env:GITHUB_OUTPUT
+        
+        Write-Host "Generated changelog:"
+        Write-Host $changelog.Replace("%0A","`n")
+
     - name: Create Release and Upload DLLs
       uses: softprops/action-gh-release@v2
       with:
@@ -177,6 +202,9 @@ jobs:
           Auto-generated release containing GWToolbox plugin DLLs.
           
           Built from commit: ${{ github.sha }}
+          
+          ## Changes since last release:
+          ${{ steps.changelog.outputs.changelog }}
           
           This release contains only the compiled plugin DLL files.
         draft: false
