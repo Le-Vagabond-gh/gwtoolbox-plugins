@@ -1,0 +1,78 @@
+name: Build and Release UseRandom Plugin
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'UseRandom/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'UseRandom/**'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: false
+        default: 'latest'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout GWToolboxpp
+      uses: actions/checkout@v4
+      with:
+        repository: Le-Vagabond-gh/GWToolboxpp
+        path: gwtoolboxpp
+    
+    - name: Checkout this repository
+      uses: actions/checkout@v4
+      with:
+        path: plugin-repo
+    
+    - name: Copy plugin files
+      run: |
+        Copy-Item -Path "plugin-repo\UseRandom\*" -Destination "gwtoolboxpp\plugins\UseRandomPlugin\" -Recurse -Force
+        Copy-Item -Path "plugin-repo\gwtoolboxdll_plugins.cmake" -Destination "gwtoolboxpp\cmake\gwtoolboxdll_plugins.cmake" -Force
+    
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: '2024-02-14'
+        vcpkgDirectory: '${{ github.workspace }}/gwtoolboxpp/Dependencies/vcpkg'
+    
+    - name: Configure CMake
+      run: |
+        cd gwtoolboxpp
+        cmake -B build -A Win32 -DCMAKE_TOOLCHAIN_FILE="Dependencies/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    
+    - name: Build Plugin
+      run: |
+        cd gwtoolboxpp
+        cmake --build build --config Release --target UseRandomPlugin
+    
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: UseRandomPlugin
+        path: |
+          gwtoolboxpp/build/plugins/Release/UseRandomPlugin.dll
+          gwtoolboxpp/build/plugins/Release/UseRandomPlugin.pdb
+        retention-days: 0
+    
+    - name: Create Release
+      if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+      uses: softprops/action-gh-release@v1
+      with:
+        name: UseRandom Plugin ${{ github.event.inputs.version || 'Latest' }}
+        tag_name: ${{ github.event.inputs.version || format('v{0}', github.run_number) }}
+        files: |
+          gwtoolboxpp/build/plugins/Release/UseRandomPlugin.dll
+          gwtoolboxpp/build/plugins/Release/UseRandomPlugin.pdb
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
