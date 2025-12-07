@@ -32,6 +32,3 @@ Example:
 1. Download `UseRandomPlugin.dll` from the [Releases](../../releases) page
 2. Place it in your GWToolbox `plugins` folder
 3. Restart GWToolbox
-
-### PDB Files
-The `.pdb` files contain debug symbols and are **not required** for the plugin to work. They're only useful if you need to debug crashes or issues. Most users can ignore them.
